@@ -1,0 +1,9 @@
+bikin online = true
+bikin nama = "Wibu"
+bikin umur = 23
+
+kalo online {
+    baka "online!"
+    baka "Nama: " + nama
+    baka "Umur: " + umur
+}

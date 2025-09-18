@@ -1,0 +1,6 @@
+bikin n = 0
+bentar (n < 5)
+{
+    baka n
+    n = n + 1
+}

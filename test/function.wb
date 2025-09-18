@@ -1,0 +1,5 @@
+moshi hai(nama) {
+    baka "hai " + nama
+}
+
+hai("ramen")
