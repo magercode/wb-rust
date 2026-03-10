@@ -1,0 +1,8 @@
+bikin nilai = 80
+
+kalo nilai >= 80:
+    baka("Nilainya A")
+ato kalo nilai >= 70:
+    baka("Nilainya B")
+ato:
+    baka("Nilainya C")

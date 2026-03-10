@@ -1,0 +1,12 @@
+[package]
+name = "wb-core"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+wb-ast = { path = "../wb-ast" }
+wb-diagnostics = { path = "../wb-diagnostics" }
+wb-lexer = { path = "../wb-lexer" }
+wb-parser = { path = "../wb-parser" }
+wb-runtime = { path = "../wb-runtime" }

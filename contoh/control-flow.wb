@@ -1,0 +1,14 @@
+// contoh/control-flow.wb
+bikin nilai = 72
+
+kalo nilai >= 80:
+    baka("A")
+ato kalo nilai >= 70:
+    baka("B")
+ato:
+    baka("C")
+
+bikin i = 0
+bentar i < 3:
+    bakaf("loop {}", i)
+    i = i + 1

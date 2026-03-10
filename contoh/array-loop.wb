@@ -1,0 +1,10 @@
+// contoh/array-loop.wb
+bikin items = [1, 2, 3, 4]
+
+bikin total = 0
+ulang item di items:
+    total = total + item
+
+baka("total =", total)
+baka("panjang =", panjang(items))
+baka("index 0 =", items[0])

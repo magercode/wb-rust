@@ -1,0 +1,8 @@
+// contoh/functions.wb
+fun faktorial(n):
+    kalo n <= 1:
+        balikin 1
+    balikin n * faktorial(n - 1)
+
+bikin hasil = faktorial(5)
+bakaf("5! = {}", hasil)

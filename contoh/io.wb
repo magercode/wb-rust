@@ -1,0 +1,6 @@
+// examples/io.wb
+bikin nama = input("Nama: ")
+bakaf("Halo {}", nama)
+
+bikin teks = format("User: {}", nama)
+tulis_file("output.txt", teks)

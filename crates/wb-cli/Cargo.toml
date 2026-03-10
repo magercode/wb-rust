@@ -1,0 +1,9 @@
+[package]
+name = "wb-cli"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+wb-core = { path = "../wb-core" }
+wb-diagnostics = { path = "../wb-diagnostics" }

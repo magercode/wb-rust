@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    "crates/wb-ast",
+    "crates/wb-cli",
+    "crates/wb-core",
+    "crates/wb-diagnostics",
+    "crates/wb-lexer",
+    "crates/wb-parser",
+    "crates/wb-runtime",
+]
+resolver = "2"
