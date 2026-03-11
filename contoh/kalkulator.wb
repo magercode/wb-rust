@@ -1,4 +1,3 @@
-// contoh/cli-calc.wb
 baka("Mini Kalkulator")
 
 bikin a = angka(input("Angka pertama: "))
