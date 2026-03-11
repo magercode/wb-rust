@@ -66,8 +66,8 @@ fn run_repl() -> Result<(), wb_diagnostics::Diagnostic> {
 fn print_usage() {
     println!("WB-Rust Interpreter");
     println!("Usage:");
-    println!("  wb-cli <file.wb>");
-    println!("  wb-cli --repl");
-    println!("  wb-cli --help");
-    println!("  wb-cli --version");
+    println!("  wibu <file.wb>");
+    println!("  wibu --repl");
+    println!("  wibu --help");
+    println!("  wibu --version");
 }

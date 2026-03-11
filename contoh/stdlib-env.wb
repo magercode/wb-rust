@@ -1,0 +1,9 @@
+// contoh/stdlib-env.wb
+bikin dir = cwd()
+bakaf("CWD: {}", dir)
+
+bikin home = env_get("HOME")
+bakaf("HOME: {}", home)
+
+env_set("WB_DEMO", "aktif")
+bakaf("WB_DEMO: {}", env_get("WB_DEMO"))

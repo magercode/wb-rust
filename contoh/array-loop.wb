@@ -1,4 +1,4 @@
-// contoh/array-loop.wb
+//contoh/array-loop.wb
 bikin items = [1, 2, 3, 4]
 
 bikin total = 0

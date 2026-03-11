@@ -1,5 +1,5 @@
 // contoh/hello.wb
 baka("Halo WibuScript!")
 
-bikin nama = "Rina"
+bikin nama = "Konnnn"
 bakaf("Halo {}, selamat datang!", nama)

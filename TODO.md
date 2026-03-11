@@ -47,7 +47,7 @@ Dokumen ini berisi daftar pekerjaan untuk rewrite interpreter Wibu ke Rust.
 - [ ] Implement pretty error message (line highlight).
 - [ ] Pastikan error dapat dipropagasi antar-crate.
 
-## 8. CLI (`wb-cli`)
+## 8. CLI (`wibu`)
 - [x] Tambahkan arg parsing (run file, repl, version).
 - [x] Implement REPL sederhana.
 - [x] Integrasi output error/diagnostic.

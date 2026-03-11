@@ -1,8 +1,15 @@
-// contoh/functions.wb
+//contoh/functions.wb
 fun faktorial(n):
     kalo n <= 1:
         balikin 1
     balikin n * faktorial(n - 1)
 
+fun nama_bapak_siapa(nama):
+    bikin namanya = nama
+    bakaf("nama bapak saya itu {}", namanya)
+    
+
+//panggil hasil & fungsi
+nama_bapak_siapa("Rusdyy")
 bikin hasil = faktorial(5)
 bakaf("5! = {}", hasil)

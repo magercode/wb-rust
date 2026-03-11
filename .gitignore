@@ -1,4 +1,71 @@
-.vscode
-*.exe
-*.obj
+# =========================
+# Rust
+# =========================
+
+# Cargo build output
 target/
+
+# Executables
+*.exe
+*.dll
+*.so
+*.dylib
+setup.sh
+
+# Debug symbols
+*.pdb
+
+# Rust backup files
+*.rs.bk
+
+# =========================
+# Release Artifacts
+# =========================
+
+# Release folders
+wb-cli-v*-release-*/
+
+# Release archives
+*.tar.gz
+*.zip
+
+# Compiled binaries in repo root
+/wibu
+/wibu.exe
+
+# =========================
+# Node / VSCode Extension
+# =========================
+
+extras/wb4vscode/node_modules/
+extras/wb4vscode/*.vsix
+extras/wb4vscode/package-lock.json
+
+# =========================
+# Editor / IDE
+# =========================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# OS Files
+# =========================
+
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+
+*.log
+
+# =========================
+# Temporary
+# =========================
+
+tmp/
+temp/

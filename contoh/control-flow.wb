@@ -9,6 +9,6 @@ ato:
     baka("C")
 
 bikin i = 0
-bentar i < 3:
+bentar i < 100:
     bakaf("loop {}", i)
     i = i + 1

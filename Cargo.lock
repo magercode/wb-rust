@@ -54,14 +54,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wb-cli"
-version = "0.1.0"
-dependencies = [
- "wb-core",
- "wb-diagnostics",
-]
-
-[[package]]
 name = "wb-core"
 version = "0.1.0"
 dependencies = [
@@ -98,5 +90,13 @@ version = "0.1.0"
 dependencies = [
  "regex",
  "wb-ast",
+ "wb-diagnostics",
+]
+
+[[package]]
+name = "wibu"
+version = "0.1.0"
+dependencies = [
+ "wb-core",
  "wb-diagnostics",
 ]

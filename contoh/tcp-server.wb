@@ -1,0 +1,12 @@
+bikin server = tcp_listen("127.0.0.1", 9000)
+baka("TCP server siap di 127.0.0.1:9000")
+
+bikin client = tcp_accept(server)
+bikin pesan = tcp_recv(client, 1024)
+bakaf("Dari client: {}", pesan)
+
+bikin terkirim = tcp_send(client, "pong")
+bakaf("Terkirim {} byte", terkirim)
+
+tcp_close(client)
+tcp_close(server)

@@ -1,0 +1,10 @@
+// contoh/stdlib-math.wb
+bikin x = 9
+bakaf("sqrt({}) = {}", x, sqrt(x))
+
+bakaf("pow(2, 8) = {}", pow(2, 8))
+bakaf("abs(-3) = {}", abs(-3))
+
+bakaf("round(3.6) = {}", round(3.6))
+bakaf("floor(3.9) = {}", floor(3.9))
+bakaf("ceil(3.1) = {}", ceil(3.1))

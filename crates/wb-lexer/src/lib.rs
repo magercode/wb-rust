@@ -388,7 +388,7 @@ impl<'a> Lexer<'a> {
 
         if let Some(next) = self.peek_next() {
             let two = [ch, next].iter().collect::<String>();
-            if matches!(two.as_str(), "==" | "!=" | "<=" | ">=" | "&&" | "||") {
+            if matches!(two.as_str(), "==" | "!=" | "<=" | ">=" | "&&" | "||" | "++" | "--") {
                 self.advance();
                 self.advance();
                 return Some(Token::new(TokenKind::Operator, two, line, col));
@@ -435,10 +435,6 @@ fn is_keyword(value: &str) -> bool {
             | "true"
             | "false"
             | "nil"
-            | "bener"
-            | "salah"
-            | "ya"
-            | "tidak"
             | "kosong"
             | "butuh"
             | "ekspor"

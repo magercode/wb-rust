@@ -67,6 +67,16 @@ impl<'a> Parser<'a> {
         if self.match_keyword("baka") {
             return self.baka_statement();
         }
+        if self.match_operator("++") {
+            let name = self.consume_identifier("Expected variable name after '++'")?;
+            self.consume_terminator();
+            return Ok(self.build_inc_stmt(name, true));
+        }
+        if self.match_operator("--") {
+            let name = self.consume_identifier("Expected variable name after '--'")?;
+            self.consume_terminator();
+            return Ok(self.build_inc_stmt(name, false));
+        }
         if self.match_punct("{") {
             let body = self.block()?;
             return Ok(Stmt::Block(body));
@@ -132,6 +142,18 @@ impl<'a> Parser<'a> {
     }
 
     fn while_statement(&mut self) -> Result<Stmt, Diagnostic> {
+        if self.is_while_init_start() {
+            let init = self.parse_while_init()?;
+            self.consume_semicolon("Expected ';' after loop initializer")?;
+            let condition = self.parse_condition()?;
+            self.consume_block_start("Expected block after while condition")?;
+            let body = self.block()?;
+            return Ok(Stmt::WhileInit {
+                init: Box::new(init),
+                condition,
+                body,
+            });
+        }
         let condition = self.parse_condition()?;
         self.consume_block_start("Expected block after while condition")?;
         let body = self.block()?;
@@ -201,6 +223,18 @@ impl<'a> Parser<'a> {
     }
 
     fn assignment_or_expression(&mut self) -> Result<Stmt, Diagnostic> {
+        if self.check_kind(TokenKind::Identifier) && self.peek_next_is_operator("++") {
+            let name = self.consume_identifier("Expected variable name")?;
+            self.consume_operator("++", "Expected '++' after variable name")?;
+            self.consume_terminator();
+            return Ok(self.build_inc_stmt(name, true));
+        }
+        if self.check_kind(TokenKind::Identifier) && self.peek_next_is_operator("--") {
+            let name = self.consume_identifier("Expected variable name")?;
+            self.consume_operator("--", "Expected '--' after variable name")?;
+            self.consume_terminator();
+            return Ok(self.build_inc_stmt(name, false));
+        }
         if self.check_kind(TokenKind::Identifier) && self.peek_next_is_operator("=") {
             let name = self.consume_identifier("Expected variable name")?;
             self.consume_operator("=", "Expected '=' in assignment")?;
@@ -237,6 +271,81 @@ impl<'a> Parser<'a> {
         } else {
             self.expression()
         }
+    }
+
+    fn is_while_init_start(&self) -> bool {
+        if self.check_keyword("bikin") {
+            return true;
+        }
+        if self.check_operator("++") || self.check_operator("--") {
+            return true;
+        }
+        self.check_kind(TokenKind::Identifier)
+            && (self.peek_next_is_operator("=")
+                || self.peek_next_is_operator("++")
+                || self.peek_next_is_operator("--"))
+    }
+
+    fn parse_while_init(&mut self) -> Result<Stmt, Diagnostic> {
+        if self.match_keyword("bikin") {
+            let name = self.consume_identifier("Expected variable name after 'bikin'")?;
+            if !self.match_operator("=") {
+                return Err(self.error_at_current("Expected '=' after variable name"));
+            }
+            let value = if self.check_semicolon() {
+                Expr::Literal(Literal::Nil)
+            } else {
+                self.expression()?
+            };
+            return Ok(Stmt::Let { name, value });
+        }
+
+        if self.match_operator("++") {
+            let name = self.consume_identifier("Expected variable name after '++'")?;
+            return Ok(self.build_inc_stmt(name, true));
+        }
+        if self.match_operator("--") {
+            let name = self.consume_identifier("Expected variable name after '--'")?;
+            return Ok(self.build_inc_stmt(name, false));
+        }
+
+        if self.check_kind(TokenKind::Identifier) && self.peek_next_is_operator("++") {
+            let name = self.consume_identifier("Expected variable name")?;
+            self.consume_operator("++", "Expected '++' after variable name")?;
+            return Ok(self.build_inc_stmt(name, true));
+        }
+        if self.check_kind(TokenKind::Identifier) && self.peek_next_is_operator("--") {
+            let name = self.consume_identifier("Expected variable name")?;
+            self.consume_operator("--", "Expected '--' after variable name")?;
+            return Ok(self.build_inc_stmt(name, false));
+        }
+
+        if self.check_kind(TokenKind::Identifier) && self.peek_next_is_operator("=") {
+            let name = self.consume_identifier("Expected variable name")?;
+            self.consume_operator("=", "Expected '=' in assignment")?;
+            let value = if self.check_semicolon() {
+                Expr::Literal(Literal::Nil)
+            } else {
+                self.expression()?
+            };
+            return Ok(Stmt::Assign { name, value });
+        }
+
+        Err(self.error_at_current("Expected loop initializer after 'bentar'"))
+    }
+
+    fn build_inc_stmt(&self, name: String, is_inc: bool) -> Stmt {
+        let op = if is_inc {
+            BinaryOp::Add
+        } else {
+            BinaryOp::Subtract
+        };
+        let value = Expr::Binary {
+            left: Box::new(Expr::Identifier(name.clone())),
+            op,
+            right: Box::new(Expr::Literal(Literal::Number(1.0))),
+        };
+        Stmt::Assign { name, value }
     }
 
     fn expression(&mut self) -> Result<Expr, Diagnostic> {
@@ -425,10 +534,10 @@ impl<'a> Parser<'a> {
         if self.check_kind(TokenKind::Keyword) {
             let token = self.advance().clone();
             match token.lexeme.as_str() {
-                "true" | "bener" | "ya" => {
+                "true" => {
                     return Ok(Expr::Literal(Literal::Boolean(true)));
                 }
-                "false" | "salah" | "tidak" => {
+                "false" => {
                     return Ok(Expr::Literal(Literal::Boolean(false)));
                 }
                 "nil" | "kosong" => return Ok(Expr::Literal(Literal::Nil)),
@@ -519,6 +628,18 @@ impl<'a> Parser<'a> {
 
     fn check_terminator(&self) -> bool {
         self.check_kind(TokenKind::Newline) || self.check_punct("}") || self.is_at_end()
+    }
+
+    fn check_semicolon(&self) -> bool {
+        self.check_kind(TokenKind::Newline) && self.peek().lexeme == ";"
+    }
+
+    fn consume_semicolon(&mut self, message: &str) -> Result<(), Diagnostic> {
+        if self.check_semicolon() {
+            self.advance();
+            return Ok(());
+        }
+        Err(self.error_at_current(message))
     }
 
     fn check_kind(&self, kind: TokenKind) -> bool {

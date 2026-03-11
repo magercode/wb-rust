@@ -1,0 +1,9 @@
+bikin client = tcp_connect("127.0.0.1", 9000)
+
+bikin terkirim = tcp_send(client, "ping")
+bakaf("Terkirim {} byte", terkirim)
+
+bikin balasan = tcp_recv(client, 1024)
+bakaf("Balasan: {}", balasan)
+
+tcp_close(client)

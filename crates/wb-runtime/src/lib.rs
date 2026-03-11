@@ -3,9 +3,11 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
+use std::net::{SocketAddr, TcpListener, TcpStream, UdpSocket};
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::{Mutex, OnceLock};
 
 use wb_ast::{BinaryOp, Expr, Literal, Stmt, UnaryOp};
 use wb_diagnostics::Diagnostic;
@@ -31,6 +33,40 @@ impl ModuleLoader for NullLoader {
     fn enter(&mut self, _base_dir: PathBuf) {}
 
     fn exit(&mut self) {}
+}
+
+struct SocketRegistry {
+    next_id: u64,
+    tcp_streams: HashMap<u64, TcpStream>,
+    tcp_listeners: HashMap<u64, TcpListener>,
+    udp_sockets: HashMap<u64, UdpSocket>,
+}
+
+impl SocketRegistry {
+    fn new() -> Self {
+        Self {
+            next_id: 1,
+            tcp_streams: HashMap::new(),
+            tcp_listeners: HashMap::new(),
+            udp_sockets: HashMap::new(),
+        }
+    }
+
+    fn alloc_id(&mut self) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+}
+
+static SOCKETS: OnceLock<Mutex<SocketRegistry>> = OnceLock::new();
+
+fn with_sockets<T>(f: impl FnOnce(&mut SocketRegistry) -> Result<T, Diagnostic>) -> Result<T, Diagnostic> {
+    let mutex = SOCKETS.get_or_init(|| Mutex::new(SocketRegistry::new()));
+    let mut guard = mutex
+        .lock()
+        .map_err(|_| Diagnostic::new("Registry socket terkunci"))?;
+    f(&mut guard)
 }
 
 #[derive(Clone)]
@@ -190,6 +226,30 @@ impl Interpreter {
                 } else {
                     Ok(ExecSignal::None)
                 }
+            }
+            Stmt::WhileInit {
+                init,
+                condition,
+                body,
+            } => {
+                match self.execute(init, loader)? {
+                    ExecSignal::None => {}
+                    signal => return Ok(signal),
+                }
+                loop {
+                    let cond = self.eval_expr(condition, loader)?;
+                    if !is_truthy(&cond) {
+                        break;
+                    }
+                    let env = Environment::new(Some(self.env.clone()));
+                    match self.execute_block(body, env, loader)? {
+                        ExecSignal::None => {}
+                        ExecSignal::Break => break,
+                        ExecSignal::Continue => continue,
+                        ExecSignal::Return(value) => return Ok(ExecSignal::Return(value)),
+                    }
+                }
+                Ok(ExecSignal::None)
             }
             Stmt::While { condition, body } => {
                 loop {
@@ -478,6 +538,36 @@ fn expect_number(value: &Value) -> Result<f64, Diagnostic> {
     }
 }
 
+fn expect_usize(value: &Value, name: &str) -> Result<usize, Diagnostic> {
+    let number = expect_number(value)?;
+    if !number.is_finite() || number.fract() != 0.0 || number < 0.0 {
+        return Err(Diagnostic::new(format!("{} harus berupa angka bulat", name)));
+    }
+    if number > usize::MAX as f64 {
+        return Err(Diagnostic::new(format!("{} terlalu besar", name)));
+    }
+    Ok(number as usize)
+}
+
+fn expect_port(value: &Value, name: &str) -> Result<u16, Diagnostic> {
+    let number = expect_usize(value, name)?;
+    if number > u16::MAX as usize {
+        return Err(Diagnostic::new(format!("{} di luar rentang port", name)));
+    }
+    Ok(number as u16)
+}
+
+fn expect_socket_id(value: &Value, name: &str) -> Result<u64, Diagnostic> {
+    let number = expect_usize(value, name)?;
+    Ok(number as u64)
+}
+
+fn parse_addr(host: &str, port: u16) -> Result<SocketAddr, Diagnostic> {
+    let addr = format!("{}:{}", host, port);
+    addr.parse()
+        .map_err(|_| Diagnostic::new("Alamat host/port tidak valid"))
+}
+
 fn value_to_string(value: &Value) -> String {
     match value {
         Value::Number(n) => format_number(*n),
@@ -746,6 +836,102 @@ fn install_builtins(env: &EnvRef) {
             func: builtin_regex_ganti,
         }),
     );
+    env.define(
+        "tcp_connect".to_string(),
+        Value::NativeFunction(NativeFunction {
+            name: "tcp_connect",
+            arity: Arity::Exact(2),
+            func: builtin_tcp_connect,
+        }),
+    );
+    env.define(
+        "tcp_listen".to_string(),
+        Value::NativeFunction(NativeFunction {
+            name: "tcp_listen",
+            arity: Arity::Exact(2),
+            func: builtin_tcp_listen,
+        }),
+    );
+    env.define(
+        "tcp_accept".to_string(),
+        Value::NativeFunction(NativeFunction {
+            name: "tcp_accept",
+            arity: Arity::Exact(1),
+            func: builtin_tcp_accept,
+        }),
+    );
+    env.define(
+        "tcp_send".to_string(),
+        Value::NativeFunction(NativeFunction {
+            name: "tcp_send",
+            arity: Arity::Exact(2),
+            func: builtin_tcp_send,
+        }),
+    );
+    env.define(
+        "tcp_recv".to_string(),
+        Value::NativeFunction(NativeFunction {
+            name: "tcp_recv",
+            arity: Arity::Exact(2),
+            func: builtin_tcp_recv,
+        }),
+    );
+    env.define(
+        "tcp_local_addr".to_string(),
+        Value::NativeFunction(NativeFunction {
+            name: "tcp_local_addr",
+            arity: Arity::Exact(1),
+            func: builtin_tcp_local_addr,
+        }),
+    );
+    env.define(
+        "tcp_close".to_string(),
+        Value::NativeFunction(NativeFunction {
+            name: "tcp_close",
+            arity: Arity::Exact(1),
+            func: builtin_tcp_close,
+        }),
+    );
+    env.define(
+        "udp_bind".to_string(),
+        Value::NativeFunction(NativeFunction {
+            name: "udp_bind",
+            arity: Arity::Exact(2),
+            func: builtin_udp_bind,
+        }),
+    );
+    env.define(
+        "udp_send".to_string(),
+        Value::NativeFunction(NativeFunction {
+            name: "udp_send",
+            arity: Arity::Exact(4),
+            func: builtin_udp_send,
+        }),
+    );
+    env.define(
+        "udp_recv".to_string(),
+        Value::NativeFunction(NativeFunction {
+            name: "udp_recv",
+            arity: Arity::Exact(2),
+            func: builtin_udp_recv,
+        }),
+    );
+    env.define(
+        "udp_local_addr".to_string(),
+        Value::NativeFunction(NativeFunction {
+            name: "udp_local_addr",
+            arity: Arity::Exact(1),
+            func: builtin_udp_local_addr,
+        }),
+    );
+    env.define(
+        "udp_close".to_string(),
+        Value::NativeFunction(NativeFunction {
+            name: "udp_close",
+            arity: Arity::Exact(1),
+            func: builtin_udp_close,
+        }),
+    );
 }
 
 fn builtin_baka(args: Vec<Value>) -> Result<Value, Diagnostic> {
@@ -963,6 +1149,200 @@ fn builtin_regex_ganti(args: Vec<Value>) -> Result<Value, Diagnostic> {
     Ok(Value::String(re.replace_all(&text, replacement).to_string()))
 }
 
+fn builtin_tcp_connect(args: Vec<Value>) -> Result<Value, Diagnostic> {
+    let host = expect_string(&args[0])?;
+    let port = expect_port(&args[1], "port")?;
+    let addr = parse_addr(&host, port)?;
+    let stream = TcpStream::connect(addr).map_err(|_| Diagnostic::new("Gagal konek TCP"))?;
+    with_sockets(|registry| {
+        let id = registry.alloc_id();
+        registry.tcp_streams.insert(id, stream);
+        Ok(Value::Number(id as f64))
+    })
+}
+
+fn builtin_tcp_listen(args: Vec<Value>) -> Result<Value, Diagnostic> {
+    let host = expect_string(&args[0])?;
+    let port = expect_port(&args[1], "port")?;
+    let addr = parse_addr(&host, port)?;
+    let listener = TcpListener::bind(addr).map_err(|_| Diagnostic::new("Gagal bind TCP"))?;
+    with_sockets(|registry| {
+        let id = registry.alloc_id();
+        registry.tcp_listeners.insert(id, listener);
+        Ok(Value::Number(id as f64))
+    })
+}
+
+fn builtin_tcp_accept(args: Vec<Value>) -> Result<Value, Diagnostic> {
+    let listener_id = expect_socket_id(&args[0], "listener")?;
+    with_sockets(|registry| {
+        let listener = registry
+            .tcp_listeners
+            .get(&listener_id)
+            .ok_or_else(|| Diagnostic::new("Listener TCP tidak ditemukan"))?;
+        let (stream, _) = listener
+            .accept()
+            .map_err(|_| Diagnostic::new("Gagal menerima koneksi TCP"))?;
+        let id = registry.alloc_id();
+        registry.tcp_streams.insert(id, stream);
+        Ok(Value::Number(id as f64))
+    })
+}
+
+fn builtin_tcp_send(args: Vec<Value>) -> Result<Value, Diagnostic> {
+    let stream_id = expect_socket_id(&args[0], "socket")?;
+    let data = expect_string(&args[1])?;
+    let bytes = data.as_bytes();
+    with_sockets(|registry| {
+        let stream = registry
+            .tcp_streams
+            .get_mut(&stream_id)
+            .ok_or_else(|| Diagnostic::new("Socket TCP tidak ditemukan"))?;
+        stream
+            .write_all(bytes)
+            .map_err(|_| Diagnostic::new("Gagal mengirim TCP"))?;
+        Ok(Value::Number(bytes.len() as f64))
+    })
+}
+
+fn builtin_tcp_recv(args: Vec<Value>) -> Result<Value, Diagnostic> {
+    let stream_id = expect_socket_id(&args[0], "socket")?;
+    let max_bytes = expect_usize(&args[1], "max_bytes")?;
+    if max_bytes == 0 {
+        return Err(Diagnostic::new("max_bytes harus lebih dari 0"));
+    }
+    with_sockets(|registry| {
+        let stream = registry
+            .tcp_streams
+            .get_mut(&stream_id)
+            .ok_or_else(|| Diagnostic::new("Socket TCP tidak ditemukan"))?;
+        let mut buf = vec![0u8; max_bytes];
+        let read = stream
+            .read(&mut buf)
+            .map_err(|_| Diagnostic::new("Gagal membaca TCP"))?;
+        if read == 0 {
+            return Ok(Value::Nil);
+        }
+        buf.truncate(read);
+        let text =
+            String::from_utf8(buf).map_err(|_| Diagnostic::new("Data TCP bukan UTF-8"))?;
+        Ok(Value::String(text))
+    })
+}
+
+fn builtin_tcp_local_addr(args: Vec<Value>) -> Result<Value, Diagnostic> {
+    let socket_id = expect_socket_id(&args[0], "socket")?;
+    with_sockets(|registry| {
+        if let Some(stream) = registry.tcp_streams.get(&socket_id) {
+            let addr = stream
+                .local_addr()
+                .map_err(|_| Diagnostic::new("Gagal membaca alamat TCP"))?;
+            return Ok(Value::String(addr.to_string()));
+        }
+        if let Some(listener) = registry.tcp_listeners.get(&socket_id) {
+            let addr = listener
+                .local_addr()
+                .map_err(|_| Diagnostic::new("Gagal membaca alamat TCP"))?;
+            return Ok(Value::String(addr.to_string()));
+        }
+        Err(Diagnostic::new("Socket TCP tidak ditemukan"))
+    })
+}
+
+fn builtin_tcp_close(args: Vec<Value>) -> Result<Value, Diagnostic> {
+    let socket_id = expect_socket_id(&args[0], "socket")?;
+    with_sockets(|registry| {
+        if registry.tcp_streams.remove(&socket_id).is_some() {
+            return Ok(Value::Nil);
+        }
+        if registry.tcp_listeners.remove(&socket_id).is_some() {
+            return Ok(Value::Nil);
+        }
+        Err(Diagnostic::new("Socket TCP tidak ditemukan"))
+    })
+}
+
+fn builtin_udp_bind(args: Vec<Value>) -> Result<Value, Diagnostic> {
+    let host = expect_string(&args[0])?;
+    let port = expect_port(&args[1], "port")?;
+    let addr = parse_addr(&host, port)?;
+    let socket = UdpSocket::bind(addr).map_err(|_| Diagnostic::new("Gagal bind UDP"))?;
+    with_sockets(|registry| {
+        let id = registry.alloc_id();
+        registry.udp_sockets.insert(id, socket);
+        Ok(Value::Number(id as f64))
+    })
+}
+
+fn builtin_udp_send(args: Vec<Value>) -> Result<Value, Diagnostic> {
+    let socket_id = expect_socket_id(&args[0], "socket")?;
+    let host = expect_string(&args[1])?;
+    let port = expect_port(&args[2], "port")?;
+    let data = expect_string(&args[3])?;
+    let addr = parse_addr(&host, port)?;
+    let bytes = data.as_bytes();
+    with_sockets(|registry| {
+        let socket = registry
+            .udp_sockets
+            .get_mut(&socket_id)
+            .ok_or_else(|| Diagnostic::new("Socket UDP tidak ditemukan"))?;
+        let sent = socket
+            .send_to(bytes, addr)
+            .map_err(|_| Diagnostic::new("Gagal mengirim UDP"))?;
+        Ok(Value::Number(sent as f64))
+    })
+}
+
+fn builtin_udp_recv(args: Vec<Value>) -> Result<Value, Diagnostic> {
+    let socket_id = expect_socket_id(&args[0], "socket")?;
+    let max_bytes = expect_usize(&args[1], "max_bytes")?;
+    if max_bytes == 0 {
+        return Err(Diagnostic::new("max_bytes harus lebih dari 0"));
+    }
+    with_sockets(|registry| {
+        let socket = registry
+            .udp_sockets
+            .get_mut(&socket_id)
+            .ok_or_else(|| Diagnostic::new("Socket UDP tidak ditemukan"))?;
+        let mut buf = vec![0u8; max_bytes];
+        let (read, addr) = socket
+            .recv_from(&mut buf)
+            .map_err(|_| Diagnostic::new("Gagal menerima UDP"))?;
+        buf.truncate(read);
+        let text =
+            String::from_utf8(buf).map_err(|_| Diagnostic::new("Data UDP bukan UTF-8"))?;
+        Ok(Value::Array(vec![
+            Value::String(text),
+            Value::String(addr.ip().to_string()),
+            Value::Number(addr.port() as f64),
+        ]))
+    })
+}
+
+fn builtin_udp_local_addr(args: Vec<Value>) -> Result<Value, Diagnostic> {
+    let socket_id = expect_socket_id(&args[0], "socket")?;
+    with_sockets(|registry| {
+        let socket = registry
+            .udp_sockets
+            .get(&socket_id)
+            .ok_or_else(|| Diagnostic::new("Socket UDP tidak ditemukan"))?;
+        let addr = socket
+            .local_addr()
+            .map_err(|_| Diagnostic::new("Gagal membaca alamat UDP"))?;
+        Ok(Value::String(addr.to_string()))
+    })
+}
+
+fn builtin_udp_close(args: Vec<Value>) -> Result<Value, Diagnostic> {
+    let socket_id = expect_socket_id(&args[0], "socket")?;
+    with_sockets(|registry| {
+        if registry.udp_sockets.remove(&socket_id).is_some() {
+            return Ok(Value::Nil);
+        }
+        Err(Diagnostic::new("Socket UDP tidak ditemukan"))
+    })
+}
+
 fn format_args(args: Vec<Value>) -> Result<String, Diagnostic> {
     if args.is_empty() {
         return Ok(String::new());
@@ -1034,5 +1414,154 @@ fn expect_string(value: &Value) -> Result<String, Diagnostic> {
     match value {
         Value::String(s) => Ok(s.clone()),
         _ => Err(Diagnostic::new("Diharapkan string")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{Read, Write};
+    use std::net::SocketAddr;
+    use std::net::{TcpListener, TcpStream, UdpSocket};
+    use std::thread;
+
+    // Test jaringan diabaikan secara default karena beberapa environment membatasi akses socket.
+
+    fn expect_number(value: Value) -> u64 {
+        match value {
+            Value::Number(n) => n as u64,
+            _ => panic!("Diharapkan angka"),
+        }
+    }
+
+    fn expect_string(value: Value) -> String {
+        match value {
+            Value::String(s) => s,
+            _ => panic!("Diharapkan string"),
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn tcp_connect_send_recv() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buf = [0u8; 4];
+            let read = stream.read(&mut buf).unwrap();
+            assert_eq!(&buf[..read], b"ping");
+            stream.write_all(b"pong").unwrap();
+        });
+
+        let socket = expect_number(
+            builtin_tcp_connect(vec![
+                Value::String("127.0.0.1".to_string()),
+                Value::Number(addr.port() as f64),
+            ])
+            .unwrap(),
+        );
+
+        builtin_tcp_send(vec![
+            Value::Number(socket as f64),
+            Value::String("ping".to_string()),
+        ])
+        .unwrap();
+        let response = builtin_tcp_recv(vec![Value::Number(socket as f64), Value::Number(4.0)])
+            .unwrap();
+        let response_text = expect_string(response);
+        assert_eq!(response_text, "pong");
+        builtin_tcp_close(vec![Value::Number(socket as f64)]).unwrap();
+
+        handle.join().unwrap();
+    }
+
+    #[test]
+    #[ignore]
+    fn tcp_listen_accept() {
+        let listener_id = expect_number(
+            builtin_tcp_listen(vec![
+                Value::String("127.0.0.1".to_string()),
+                Value::Number(0.0),
+            ])
+            .unwrap(),
+        );
+        let addr_str = expect_string(
+            builtin_tcp_local_addr(vec![Value::Number(listener_id as f64)]).unwrap(),
+        );
+        let addr: SocketAddr = addr_str.parse().unwrap();
+
+        let handle = thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            stream.write_all(b"hi").unwrap();
+            let mut buf = [0u8; 2];
+            let read = stream.read(&mut buf).unwrap();
+            assert_eq!(&buf[..read], b"ok");
+        });
+
+        let stream_id = expect_number(
+            builtin_tcp_accept(vec![Value::Number(listener_id as f64)]).unwrap(),
+        );
+        let received =
+            builtin_tcp_recv(vec![Value::Number(stream_id as f64), Value::Number(2.0)]).unwrap();
+        let received_text = expect_string(received);
+        assert_eq!(received_text, "hi");
+        builtin_tcp_send(vec![
+            Value::Number(stream_id as f64),
+            Value::String("ok".to_string()),
+        ])
+        .unwrap();
+
+        builtin_tcp_close(vec![Value::Number(stream_id as f64)]).unwrap();
+        builtin_tcp_close(vec![Value::Number(listener_id as f64)]).unwrap();
+        handle.join().unwrap();
+    }
+
+    #[test]
+    #[ignore]
+    fn udp_send_recv() {
+        let udp_id = expect_number(
+            builtin_udp_bind(vec![
+                Value::String("127.0.0.1".to_string()),
+                Value::Number(0.0),
+            ])
+            .unwrap(),
+        );
+        let addr_str =
+            expect_string(builtin_udp_local_addr(vec![Value::Number(udp_id as f64)]).unwrap());
+        let addr: SocketAddr = addr_str.parse().unwrap();
+
+        let sender = UdpSocket::bind("127.0.0.1:0").unwrap();
+        sender.send_to(b"ping", addr).unwrap();
+
+        let packet =
+            builtin_udp_recv(vec![Value::Number(udp_id as f64), Value::Number(4.0)]).unwrap();
+        let items = match packet {
+            Value::Array(items) => items,
+            _ => panic!("Diharapkan array"),
+        };
+        assert_eq!(items.len(), 3);
+        let first = expect_string(items[0].clone());
+        assert_eq!(first, "ping");
+        let host = expect_string(items[1].clone());
+        let port = match items[2] {
+            Value::Number(n) => n as u16,
+            _ => panic!("Diharapkan angka"),
+        };
+
+        builtin_udp_send(vec![
+            Value::Number(udp_id as f64),
+            Value::String(host),
+            Value::Number(port as f64),
+            Value::String("pong".to_string()),
+        ])
+        .unwrap();
+
+        let mut buf = [0u8; 4];
+        let (read, _) = sender.recv_from(&mut buf).unwrap();
+        assert_eq!(&buf[..read], b"pong");
+
+        builtin_udp_close(vec![Value::Number(udp_id as f64)]).unwrap();
     }
 }

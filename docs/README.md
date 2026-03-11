@@ -9,13 +9,13 @@ WibuScript adalah bahasa scripting ringan dengan sintaks sederhana. Blok bisa me
 Jalankan file `.wb` dengan CLI:
 
 ```bash
-cargo run -p wb-cli -- path/ke/file.wb
+cargo run -p wibu -- path/ke/file.wb
 ```
 
 REPL:
 
 ```bash
-cargo run -p wb-cli -- --repl
+cargo run -p wibu -- --repl
 ```
 
 **Sintaks Dasar**
@@ -60,19 +60,19 @@ kalo true {
 | `berhenti` | break |
 | `butuh` | impor modul |
 | `ekspor` | ekspor (placeholder, evaluasi ekspresi) |
-| `true`, `bener`, `ya` | boolean true |
-| `false`, `salah`, `tidak` | boolean false |
+| `true` | boolean benar |
+| `false` | boolean salah |
 | `nil`, `kosong` | nilai kosong |
 | `nani`, `yamete`, `sugoi` | keyword cadangan (belum aktif) |
 
 **Tipe Data**
 - Angka: `123`, `3.14`.
 - String: `"teks"` atau `'teks'` dengan escape `\n`, `\t`, `\"`, `\'`.
-- Boolean: `true/false` dan sinonim di atas.
+- Boolean: `true` dan `false`.
 - Nil: `nil`.
 - Array: `[1, 2, 3]`.
 
-Nil dan boolean `false` dianggap false, sisanya true.
+Nil dan boolean `false` dianggap tidak benar, sisanya `true`.
 
 **Operator**
 - Aritmatika: `+ - * / %`.
@@ -107,6 +107,23 @@ bikin i = 0
 bentar i < 3:
     bakaf("loop {}", i)
     i = i + 1
+```
+
+While dengan inisialisasi di header:
+
+```wibu
+bentar bikin i = 0; i < 3:
+    bakaf("loop {}", i)
+    i++
+```
+
+Increment/decrement:
+
+```wibu
+i++
+++i
+i--
+--i
 ```
 
 For-each array:
@@ -182,6 +199,18 @@ Resolusi modul:
 | `regex_cocok(pattern, text)` | 2 | cocokkan regex -> boolean |
 | `regex_cari(pattern, text)` | 2 | hasil match pertama atau `nil` |
 | `regex_ganti(pattern, text, repl)` | 3 | ganti regex -> string |
+| `tcp_connect(host, port)` | 2 | konek TCP -> handle socket |
+| `tcp_listen(host, port)` | 2 | listen TCP -> handle listener |
+| `tcp_accept(listener)` | 1 | terima koneksi -> handle socket |
+| `tcp_send(socket, text)` | 2 | kirim data TCP -> jumlah byte |
+| `tcp_recv(socket, max_bytes)` | 2 | terima data TCP -> string atau `nil` saat EOF |
+| `tcp_local_addr(socket)` | 1 | alamat lokal TCP (`ip:port`) |
+| `tcp_close(socket)` | 1 | tutup socket/listener TCP |
+| `udp_bind(host, port)` | 2 | bind UDP -> handle socket |
+| `udp_send(socket, host, port, text)` | 4 | kirim data UDP -> jumlah byte |
+| `udp_recv(socket, max_bytes)` | 2 | terima data UDP -> `[text, host, port]` |
+| `udp_local_addr(socket)` | 1 | alamat lokal UDP (`ip:port`) |
+| `udp_close(socket)` | 1 | tutup socket UDP |
 
 **Contoh**
 Lihat contoh lengkap di folder `examples/`.

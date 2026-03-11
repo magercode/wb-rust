@@ -1,0 +1,13 @@
+bikin a = udp_bind("127.0.0.1", 9001)
+bikin b = udp_bind("127.0.0.1", 9002)
+
+udp_send(a, "127.0.0.1", 9002, "ping")
+bikin paket = udp_recv(b, 1024)
+bakaf("Diterima: {}", paket[0])
+
+udp_send(b, paket[1], paket[2], "pong")
+bikin balasan = udp_recv(a, 1024)
+bakaf("Balasan: {}", balasan[0])
+
+udp_close(a)
+udp_close(b)

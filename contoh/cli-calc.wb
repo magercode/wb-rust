@@ -1,0 +1,17 @@
+// contoh/cli-calc.wb
+baka("Mini Kalkulator")
+
+bikin a = angka(input("Angka pertama: "))
+bikin b = angka(input("Angka kedua: "))
+bikin op = input("Operasi (+ - * /): ")
+
+kalo op == "+":
+    baka(a + b)
+ato kalo op == "-":
+    baka(a - b)
+ato kalo op == "*":
+    baka(a * b)
+ato kalo op == "/":
+    baka(a / b)
+ato:
+    baka("Operasi tidak dikenal")

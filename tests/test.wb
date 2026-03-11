@@ -1,8 +1,23 @@
-bikin nilai = 80
+// wibuscript!!
+// @magercode
 
-kalo nilai >= 80:
-    baka("Nilainya A")
-ato kalo nilai >= 70:
-    baka("Nilainya B")
-ato:
-    baka("Nilainya C")
+//function!!
+fun namalu(nama):
+    bakaf("Nama lu itu {}", nama)
+
+fun nama_bapak_lu(nama):
+    bikin namanya = nama
+    bakaf("nama bapak lu itu {}", namanya)
+
+//loop
+bikin i = 0
+
+//panggil functions!
+
+//variabel
+bikin nama_gw = "adjirayax"
+bikin nama_bapak_gw = "amba"
+
+namalu(nama_gw)
+nama_bapak_lu(nama_bapak_gw)
+ 

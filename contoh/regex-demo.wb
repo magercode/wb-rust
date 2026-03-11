@@ -1,0 +1,14 @@
+// contoh/regex-demo.wb
+bikin teks = "Email: user@example.com, Telp: 0812-3456-7890"
+
+bikin cocok = regex_cocok("[\\w._%+-]+@[\\w.-]+", teks)
+bakaf("Ada email? {}", cocok)
+
+bikin email = regex_cari("[\\w._%+-]+@[\\w.-]+", teks)
+bakaf("Email pertama: {}", email)
+
+bikin disensor = regex_ganti("\\d", teks, "x")
+bakaf("Disensor: {}", disensor)
+
+bakaf("Panjang teks: {}", panjang(teks))
+bakaf("Tipe hasil: {}", tipe(disensor))

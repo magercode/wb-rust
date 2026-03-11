@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "crates/wb-ast",
-    "crates/wb-cli",
+    "crates/wibu",
     "crates/wb-core",
     "crates/wb-diagnostics",
     "crates/wb-lexer",
